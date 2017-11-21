@@ -3,12 +3,16 @@ package ma.laile;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
+import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -28,6 +32,9 @@ public class CourseActivity extends AppCompatActivity {
     private TextView mTextStartTime;
     private TextView mTextEndTime;
     private Button mButtonAttend;
+
+    private TextView mActionBarTitle;
+    private Button mButtonBack;
     private Button mButtonLoggout;
 
     private View mProgressView;
@@ -36,13 +43,42 @@ public class CourseActivity extends AppCompatActivity {
     private TextView mTextNoCourse;
 
     private LoadInfoTask mLoadTask;
+    private AttendTask mAttendTask;
 
-    private Handler mHanler;
+    private String mCourseID;
+    private int mCourseTimes, mTotalCourseTimes, mAttendTimes;
+    private String mCourseName, mTeacherName, mStartTimeStr, mEndTimeStr;
+    private boolean mIsAttended;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_course);
+
+        ActionBar bar = getSupportActionBar();
+        if (bar != null) {
+            bar.setDisplayOptions(ActionBar.DISPLAY_SHOW_CUSTOM);
+            bar.setCustomView(R.layout.action_bar_default);
+            mButtonBack = bar.getCustomView().findViewById(R.id.button_back);
+            mButtonLoggout = bar.getCustomView().findViewById(R.id.button_logout);
+            mActionBarTitle = bar.getCustomView().findViewById(R.id.action_bar_title);
+
+            mActionBarTitle.setText("当前课程");
+            mButtonBack.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    finish();
+                }
+            });
+            mButtonLoggout.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    Intent intent = new Intent(CourseActivity.this, LoginActivity.class);
+                    startActivity(intent);
+                    finish();
+                }
+            });
+        }
 
         mTextCourseTimes = (TextView)findViewById(R.id.text_course_times);
         mTextAttendedTimes = (TextView)findViewById(R.id.text_attend_times);
@@ -52,13 +88,19 @@ public class CourseActivity extends AppCompatActivity {
         mTextEndTime = (TextView)findViewById(R.id.text_end_time);
 
         mButtonAttend = (Button)findViewById(R.id.button_attend);
+        mButtonAttend.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mButtonAttend.setEnabled(false);
+                mAttendTask = new AttendTask();
+                mAttendTask.execute((Void) null);
+            }
+        });
 
         mProgressView = findViewById(R.id.load_info_progress);
         mInfoFormView = findViewById(R.id.info_form);
 
         mTextNoCourse = findViewById(R.id.text_no_course);
-
-        mHanler = new CourseHandler();
 
         showProgress(true);
 
@@ -122,11 +164,6 @@ public class CourseActivity extends AppCompatActivity {
 
     public class LoadInfoTask extends AsyncTask<Void, Void, Boolean> {
 
-        private String mCourseID;
-        private int mCourseTimes, mTotalCourseTimes, mAttendTimes;
-        private String mCourseName, mTeacherName, mStartTimeStr, mEndTimeStr;
-        private boolean mIsAttended;
-
         @Override
         protected Boolean doInBackground(Void... params) {
             // TODO: load information against a network service.
@@ -140,7 +177,7 @@ public class CourseActivity extends AppCompatActivity {
                 startTime = format.parse(startTimeStr);
                 endTime = format.parse(endTimeStr);
 
-                //mCourseID = "000001";
+                mCourseID = "000001";
                 mTotalCourseTimes = 16;
                 mCourseTimes = 9;
                 mAttendTimes = 8;
@@ -171,27 +208,13 @@ public class CourseActivity extends AppCompatActivity {
 
             if (success) {
                 if (mCourseID == null || mCourseID.isEmpty()) {
-                    showProgress(false);
-                    mProgressView.clearAnimation();
+                    mProgressView.setVisibility(View.GONE);
                     mInfoFormView.setVisibility(View.GONE);
                     mTextNoCourse.setVisibility(View.VISIBLE);
                 } else {
                     showInfo(mCourseTimes, mTotalCourseTimes, mAttendTimes,
                             mCourseName, mTeacherName, mIsAttended, mStartTimeStr, mEndTimeStr);
                 }
-                /*Message msg = new Message();
-                msg.what = UPDATE_TEXTS;
-                Bundle data = new Bundle();
-                data.putInt("CourseTimes", mCourseTimes);
-                data.putInt("TotalCourseTimes", mTotalCourseTimes);
-                data.putInt("AttendTimes", mAttendTimes);
-                data.putString("CourseName", mCourseName);
-                data.putString("TeacherName", mTeacherName);
-                data.putString("StartTimeStr", mStartTimeStr);
-                data.putString("EndTimeStr", mEndTimeStr);
-                data.putBoolean("IsAttended", mIsAttended);
-                msg.setData(data);
-                mHanler.sendMessage(msg);*/
             } else {
                 Toast.makeText(CourseActivity.this, "获取课程信息失败！请检查网络连接",
                         Toast.LENGTH_LONG).show();
@@ -207,24 +230,45 @@ public class CourseActivity extends AppCompatActivity {
         }
     }
 
-    private class CourseHandler extends Handler {
-        @Override
-        public void handleMessage(Message msg) {
-            super.handleMessage(msg);
+    public class AttendTask extends AsyncTask<Void, Void, Boolean> {
 
-            switch (msg.what) {
-                case UPDATE_TEXTS:
-                    Bundle data = msg.getData();
-                    showInfo(data.getInt("CourseTimes"),
-                            data.getInt("TotalCourseTimes"),
-                            data.getInt("AttendTimes"),
-                            data.getString("CourseName"),
-                            data.getString("TeacherName"),
-                            data.getBoolean("IsAttended"),
-                            data.getString("StartTimeStr"),
-                            data.getString("EndTimeStr"));
-                    break;
+        @Override
+        protected Boolean doInBackground(Void... params) {
+            // TODO: attend against a network service.
+
+            try {
+                // Simulate network access.
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                return false;
             }
+
+            // TODO: assign the variables here.
+            return true;
+        }
+
+        @Override
+        protected void onPostExecute(final Boolean success) {
+            mLoadTask = null;
+
+            if (success) {
+                Toast.makeText(CourseActivity.this, "签到成功",
+                        Toast.LENGTH_LONG).show();
+                mIsAttended = true;
+                mButtonAttend.setText("已签到");
+                mTextAttendedTimes.setText("已签到" + ++mAttendTimes + "次");
+            } else {
+                Toast.makeText(CourseActivity.this, "签到失败！请检查网络连接",
+                        Toast.LENGTH_LONG).show();
+            }
+
+            showProgress(false);
+        }
+
+        @Override
+        protected void onCancelled() {
+            mLoadTask = null;
+            showProgress(false);
         }
     }
 }

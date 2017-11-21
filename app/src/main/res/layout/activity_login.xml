@@ -10,6 +10,8 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context="ma.laile.LoginActivity">
 
+
+
     <LinearLayout
         android:id="@+id/email_login_form"
         android:layout_width="match_parent"
