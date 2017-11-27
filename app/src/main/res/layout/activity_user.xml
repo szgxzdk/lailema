@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="ma.laile.UserActivity">
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/colorLailema">
+
+        <ma.laile.RoundedImageView
+            android:id="@+id/image_icon"
+            android:layout_margin="20dp"
+            android:layout_width="120dp"
+            android:layout_height="120dp" />
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginVertical="20dp">
+
+            <TextView
+                android:id="@+id/text_username"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:textColor="#FFFFFF"
+                android:textSize="@dimen/textview_font_size"
+                android:paddingLeft="16dp"
+                android:gravity="center_vertical"/>
+            <TextView
+                android:id="@+id/text_userid"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:textColor="#FFFFFF"
+                android:textSize="@dimen/textview_font_size"
+                android:paddingLeft="16dp"
+                android:gravity="center_vertical"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/button_current_course"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="开始签到"
+        android:textSize="22sp"
+        android:background="@drawable/white_button_selector"
+        android:paddingVertical="10dp"
+        android:layout_marginTop="16dp"/>
+    <Button
+        android:id="@+id/button_history"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="历史考勤"
+        android:textSize="22sp"
+        android:background="@drawable/white_button_selector"
+        android:paddingVertical="10dp" />
+</LinearLayout>

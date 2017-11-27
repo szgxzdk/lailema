@@ -12,5 +12,7 @@
     <string name="error_field_required">该选项不能为空</string>
 
     <drawable name="click_normal">#00000000</drawable>
-    <drawable name="click_pressed">@color/colorLailemaDark</drawable>
+    <drawable name="lailema_click_pressed">@color/colorLailemaDark</drawable>
+
+    <drawable name="white_click_pressed">#EEEEEE</drawable>
 </resources>

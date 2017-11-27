@@ -27,6 +27,8 @@
             </intent-filter>
         </activity>
         <activity android:name=".CourseActivity" />
+        <activity android:name=".UserActivity" />
+        <activity android:name=".HistoryActivity"></activity>
     </application>
 
 </manifest>

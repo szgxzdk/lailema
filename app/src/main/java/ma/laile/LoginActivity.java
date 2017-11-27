@@ -165,7 +165,7 @@ public class LoginActivity extends AppCompatActivity /*implements LoaderCallback
             mAuthTask = null;
 
             if (success) {
-                Intent intent = new Intent(LoginActivity.this, CourseActivity.class);
+                Intent intent = new Intent(LoginActivity.this, UserActivity.class);
                 startActivity(intent);
                 finish();
             } else {
