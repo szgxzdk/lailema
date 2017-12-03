@@ -4,7 +4,7 @@
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="ma.laile.UserActivity">
+    tools:context="ma.laile.activities.UserActivity">
 
     <LinearLayout
         android:orientation="horizontal"
@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:background="@color/colorLailema">
 
-        <ma.laile.RoundedImageView
+        <ma.laile.views.RoundedImageView
             android:id="@+id/image_icon"
             android:layout_margin="20dp"
             android:layout_width="120dp"

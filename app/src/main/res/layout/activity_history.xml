@@ -5,6 +5,6 @@
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="ma.laile.HistoryActivity">
+    tools:context="ma.laile.activities.HistoryActivity">
 
 </LinearLayout>
