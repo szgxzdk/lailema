@@ -6,6 +6,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -28,19 +29,30 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.apache.http.NameValuePair;
+import org.apache.http.message.BasicNameValuePair;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.json.JSONTokener;
+
 import java.io.File;
 import java.io.IOException;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
+import ma.laile.PostRequest;
 import ma.laile.R;
+import ma.laile.context.MyApplication;
 import ma.laile.face.ImageUtils;
 import ma.laile.face.MxNetUtils;
 
 public class AttendActivity extends AppCompatActivity {
     public static final int CAPTURE_PHOTO_CODE = 1;
-    public static final double THRESHOLD = 0.7;
+    public static final double THRESHOLD = 0.65;
+
+    MyApplication context;
 
     private TextView mTextCourseTimes;
     private TextView mTextAttendedTimes;
@@ -48,6 +60,7 @@ public class AttendActivity extends AppCompatActivity {
     private TextView mTextTeacherName;
     private TextView mTextStartTime;
     private TextView mTextEndTime;
+    private TextView mTextVenue;
     private Button mButtonAttend;
 
     private TextView mActionBarTitle;
@@ -62,10 +75,12 @@ public class AttendActivity extends AppCompatActivity {
     private LoadInfoTask mLoadTask;
     private AttendTask mAttendTask;
 
-    private String mCourseID;
+    private String mLessonId;
     private int mCourseTimes, mTotalCourseTimes, mAttendTimes;
     private String mCourseName, mTeacherName, mStartTimeStr, mEndTimeStr;
+    private String mVenueName;
     private boolean mIsAttended;
+    private boolean mIsHere = false;
 
     private String currentPhotoPath;
     private Bitmap oldPhoto;
@@ -100,6 +115,23 @@ public class AttendActivity extends AppCompatActivity {
             mButtonLoggout.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
+                    SharedPreferences pref = getSharedPreferences("lailema", 0);
+                    String token = pref.getString("token", null);
+                    SharedPreferences.Editor editor = pref.edit();
+                    editor.remove("token");
+                    editor.commit();
+
+                    PostRequest request = new PostRequest();
+                    request.setOnReceiveDataListener(new PostRequest.OnReceiveDataListener() {
+                        @Override
+                        public void onReceiveData(String strResult, int StatusCode) {}
+                    });
+
+                    List<NameValuePair> p = new ArrayList<NameValuePair>();
+                    request.iniRequest(PostRequest.Logout, p, token);
+                    request.execute();
+
+                    LoginActivity.isSeen = true;
                     Intent intent = new Intent(AttendActivity.this, LoginActivity.class);
                     intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(intent);
@@ -107,15 +139,9 @@ public class AttendActivity extends AppCompatActivity {
             });
         }
 
-        locationManager = (LocationManager)getApplicationContext().getSystemService(LOCATION_SERVICE);
+        context = (MyApplication)getApplicationContext();
 
-        // TODO:get Intent data here
-        //A1
-        venueLongitude = 113.40563;
-        venueLatitude = 23.048126;
-        //B8
-        //venueLongitude = 113.40133488178253;
-        //venueLatitude = 23.047674894332886;
+        locationManager = (LocationManager)getApplicationContext().getSystemService(LOCATION_SERVICE);
 
         mTextCourseTimes = (TextView) findViewById(R.id.text_course_times);
         mTextAttendedTimes = (TextView) findViewById(R.id.text_attend_times);
@@ -123,6 +149,7 @@ public class AttendActivity extends AppCompatActivity {
         mTextTeacherName = (TextView) findViewById(R.id.text_teacher_name);
         mTextStartTime = (TextView) findViewById(R.id.text_start_time);
         mTextEndTime = (TextView) findViewById(R.id.text_end_time);
+        mTextVenue = (TextView) findViewById(R.id.text_venue);
 
         mButtonAttend = (Button) findViewById(R.id.button_attend);
         mButtonAttend.setOnClickListener(new View.OnClickListener() {
@@ -154,11 +181,10 @@ public class AttendActivity extends AppCompatActivity {
         mLoadTask = new LoadInfoTask();
         mLoadTask.execute((Void) null);
 
-        //TODO: load user photo and get features
-        oldPhoto = BitmapFactory.decodeResource(this.getApplicationContext().getResources(), R.drawable.xsy);
+        oldPhoto = context.getIcon();
         Bitmap sFace = ImageUtils.getAlignedFaceFromImage(oldPhoto);
         if (sFace == null) {
-            Toast.makeText(this, "获取人脸库人脸出错！", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "获取证件照出错！", Toast.LENGTH_SHORT).show();
             finish();
         }
         features = MxNetUtils.getFeatures(sFace);
@@ -183,42 +209,46 @@ public class AttendActivity extends AppCompatActivity {
 
     @SuppressLint("MissingPermission")
     private void activateLocation() {
-        locationManager.requestSingleUpdate(
-                LocationManager.GPS_PROVIDER, new LocationListener() {
-                    @Override
-                    public void onLocationChanged(Location location) {
-                        // TODO: verify GPS information here
-                        Log.d("mylocation", location.getLongitude() + " " + location.getLatitude());
-                        float[] distances = new float[3];
-                        Location.distanceBetween(venueLatitude, venueLongitude, location.getLatitude(), location.getLongitude()
-                        , distances);
-                        Log.d("mylocation", distances[0] + "");
-                        Toast.makeText(AttendActivity.this, "" + location.getLongitude() + "  " + location.getLatitude(),
-                                Toast.LENGTH_LONG).show();
-                        if (distances[0] < 150) {
-                            dispatchTakePictureIntent();
-                        } else {
-                            Toast.makeText(AttendActivity.this, "你离教室太远了！", Toast.LENGTH_LONG).show();
-                            mButtonAttend.setEnabled(true);
-                            mButtonAttend.setText("签到");
+        if (!mIsHere) {
+            locationManager.requestSingleUpdate(
+                    LocationManager.GPS_PROVIDER, new LocationListener() {
+                        @Override
+                        public void onLocationChanged(Location location) {
+                            Log.d("mylocation", location.getLongitude() + " " + location.getLatitude());
+                            float[] distances = new float[3];
+                            Location.distanceBetween(venueLatitude, venueLongitude, location.getLatitude(), location.getLongitude()
+                                    , distances);
+                            Log.d("mylocation", distances[0] + "");
+                            Toast.makeText(AttendActivity.this, "" + location.getLongitude() + "  " + location.getLatitude(),
+                                    Toast.LENGTH_LONG).show();
+                            if (distances[0] < 150) {
+                                mIsHere = true;
+                                dispatchTakePictureIntent();
+                            } else {
+                                Toast.makeText(AttendActivity.this, "你离教室太远了！", Toast.LENGTH_LONG).show();
+                                mButtonAttend.setEnabled(true);
+                                mButtonAttend.setText("签到");
+                            }
                         }
-                    }
 
-                    @Override
-                    public void onStatusChanged(String provider, int status, Bundle extras) {
+                        @Override
+                        public void onStatusChanged(String provider, int status, Bundle extras) {
 
-                    }
+                        }
 
-                    @Override
-                    public void onProviderEnabled(String provider) {
+                        @Override
+                        public void onProviderEnabled(String provider) {
 
-                    }
+                        }
 
-                    @Override
-                    public void onProviderDisabled(String provider) {
+                        @Override
+                        public void onProviderDisabled(String provider) {
 
-                    }
-                }, null);
+                        }
+                    }, null);
+        } else {
+            dispatchTakePictureIntent();
+        }
     }
 
     /**
@@ -259,13 +289,14 @@ public class AttendActivity extends AppCompatActivity {
 
     private void showInfo(int courseTimes, int totalCourseTimes, int attendTimes,
                           String courseName, String teacherName, boolean isAttended,
-                          String startTimeStr, String endTimeStr) {
+                          String startTimeStr, String endTimeStr, String venueName) {
         mTextCourseTimes.setText("第" + courseTimes + "/" + totalCourseTimes + "次课");
         mTextAttendedTimes.setText("已签到" + attendTimes + "次");
         mTextCourseName.setText(courseName);
         mTextTeacherName.setText(teacherName);
         mTextStartTime.setText(startTimeStr);
         mTextEndTime.setText(endTimeStr);
+        mTextVenue.setText(venueName);
 
         if (isAttended) {
             mButtonAttend.setText("已签到");
@@ -278,61 +309,72 @@ public class AttendActivity extends AppCompatActivity {
 
         @Override
         protected Boolean doInBackground(Void... params) {
-            // TODO: load information against a network service.
-            //fill textviews
-            String startTimeStr = "2017/11/10 10:40", endTimeStr = "2017/11/10 12:20";
-            SimpleDateFormat format = new SimpleDateFormat("yyyy/MM/dd hh:mm");
+            PostRequest request = new PostRequest();
+            request.setOnReceiveDataListener(new PostRequest.OnReceiveDataListener() {
+                @Override
+                public void onReceiveData(String strResult, int StatusCode) {
+                    Log.d("httpDebugCourse", strResult);
+                    if (strResult.equals("false")) {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                mProgressView.setVisibility(View.GONE);
+                                mInfoFormView.setVisibility(View.GONE);
+                                mTextNoCourse.setVisibility(View.VISIBLE);
+                                showProgress(false);
+                            }
+                        });
+                    } else {
+                        JSONTokener parser = new JSONTokener(strResult);
+                        try {
+                            JSONObject result = (JSONObject) parser.nextValue();
 
-            Date startTime;
-            Date endTime;
-            try {
-                startTime = format.parse(startTimeStr);
-                endTime = format.parse(endTimeStr);
+                            //fill textviews
+                            mStartTimeStr = result.getString("startTime");
+                            mEndTimeStr = result.getString("endTime");
+                            mLessonId = result.getString("id");
+                            mTotalCourseTimes = result.getInt("totalTimes");
+                            mCourseTimes = result.getInt("curTimes");
+                            mAttendTimes = result.getInt("totalAttendence");
+                            mCourseName = result.getString("courseName");
+                            mTeacherName = result.getString("teacherName");
+                            mIsAttended = result.getBoolean("isAttended");
 
-                mCourseID = "000001";
-                mTotalCourseTimes = 16;
-                mCourseTimes = 9;
-                mAttendTimes = 8;
-                mCourseName = "IT项目管理";
-                mTeacherName = "陈泽琳";
-                mIsAttended = false;
-                mStartTimeStr = format.format(startTime);
-                mEndTimeStr = format.format(endTime);
+                            // TODO:PositionData
+                            JSONObject venue = (JSONObject)result.get("venue");
+                            //A1
+                            //venueLongitude = 113.40563;
+                            //venueLatitude = 23.048126;
+                            //B8
+                            mVenueName = venue.getString("name");
+                            venueLongitude = venue.getDouble("venueLongitude");
+                            venueLatitude = venue.getDouble("venueLatitude");
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
 
-            } catch (ParseException e) {
-                e.printStackTrace();
-            }
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                showInfo(mCourseTimes, mTotalCourseTimes, mAttendTimes,
+                                        mCourseName, mTeacherName, mIsAttended, mStartTimeStr, mEndTimeStr, mVenueName);
+                                showProgress(false);
+                            }
+                        });
+                    }
+                }
+            });
 
-            try {
-                // Simulate network access.
-                Thread.sleep(2000);
-            } catch (InterruptedException e) {
-                return false;
-            }
+            request.iniRequest(PostRequest.CurrentLesson, new ArrayList<NameValuePair>(), context.getToken());
 
-            // TODO: assign the variables here.
+            request.execute();
+
             return true;
         }
 
         @Override
         protected void onPostExecute(final Boolean success) {
             mLoadTask = null;
-
-            if (success) {
-                if (mCourseID == null || mCourseID.isEmpty()) {
-                    mProgressView.setVisibility(View.GONE);
-                    mInfoFormView.setVisibility(View.GONE);
-                    mTextNoCourse.setVisibility(View.VISIBLE);
-                } else {
-                    showInfo(mCourseTimes, mTotalCourseTimes, mAttendTimes,
-                            mCourseName, mTeacherName, mIsAttended, mStartTimeStr, mEndTimeStr);
-                }
-            } else {
-                Toast.makeText(AttendActivity.this, "获取课程信息失败！请检查网络连接",
-                        Toast.LENGTH_LONG).show();
-            }
-
-            showProgress(false);
         }
 
         @Override
@@ -442,35 +484,48 @@ public class AttendActivity extends AppCompatActivity {
 
         @Override
         protected Boolean doInBackground(Void... params) {
-            // TODO: send attendance request
+            PostRequest request = new PostRequest();
+            request.setOnReceiveDataListener(new PostRequest.OnReceiveDataListener() {
+                @Override
+                public void onReceiveData(String strResult, int StatusCode) {
+                    Log.d("httpDebugAttend", strResult);
+                    if (strResult.equals("false")) {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(AttendActivity.this, "签到失败！请检查网络连接",
+                                        Toast.LENGTH_LONG).show();
+                                mButtonAttend.setEnabled(true);
+                                mButtonAttend.setText("签到");
+                            }
+                        });
+                    } else {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(AttendActivity.this, "签到成功",
+                                        Toast.LENGTH_LONG).show();
+                                mIsAttended = true;
+                                mButtonAttend.setText("已签到");
+                                mTextAttendedTimes.setText("已签到" + ++mAttendTimes + "次");
+                            }
+                        });
+                    }
+                }
+            });
 
-            try {
-                // Simulate network access.
-                Thread.sleep(2000);
-            } catch (InterruptedException e) {
-                return false;
-            }
+            List<NameValuePair> p = new ArrayList<NameValuePair>();
+            p.add(new BasicNameValuePair("lessonId", mLessonId));
+            request.iniRequest(PostRequest.Attend, p, context.getToken());
 
-            // TODO: assign the variables here.
+            request.execute();
+
             return true;
         }
 
         @Override
         protected void onPostExecute(final Boolean success) {
             mLoadTask = null;
-
-            if (success) {
-                Toast.makeText(AttendActivity.this, "签到成功",
-                        Toast.LENGTH_LONG).show();
-                mIsAttended = true;
-                mButtonAttend.setText("已签到");
-                mTextAttendedTimes.setText("已签到" + ++mAttendTimes + "次");
-            } else {
-                Toast.makeText(AttendActivity.this, "签到失败！请检查网络连接",
-                        Toast.LENGTH_LONG).show();
-                mButtonAttend.setEnabled(true);
-                mButtonAttend.setText("签到");
-            }
         }
 
         @Override

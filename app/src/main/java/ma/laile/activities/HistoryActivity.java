@@ -1,6 +1,7 @@
 package ma.laile.activities;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -8,6 +9,12 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
+import org.apache.http.NameValuePair;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import ma.laile.PostRequest;
 import ma.laile.R;
 
 public class HistoryActivity extends AppCompatActivity {
@@ -38,6 +45,23 @@ public class HistoryActivity extends AppCompatActivity {
             mButtonLoggout.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
+                    SharedPreferences pref = getSharedPreferences("lailema", 0);
+                    String token = pref.getString("token", null);
+                    SharedPreferences.Editor editor = pref.edit();
+                    editor.remove("token");
+                    editor.commit();
+
+                    PostRequest request = new PostRequest();
+                    request.setOnReceiveDataListener(new PostRequest.OnReceiveDataListener() {
+                        @Override
+                        public void onReceiveData(String strResult, int StatusCode) {}
+                    });
+
+                    List<NameValuePair> p = new ArrayList<NameValuePair>();
+                    request.iniRequest(PostRequest.Logout, p, token);
+                    request.execute();
+
+                    LoginActivity.isSeen = true;
                     Intent intent = new Intent(HistoryActivity.this, LoginActivity.class);
                     intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(intent);

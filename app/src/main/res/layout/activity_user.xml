@@ -10,13 +10,17 @@
         android:orientation="horizontal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:paddingBottom="15dp"
         android:background="@color/colorLailema">
 
         <ma.laile.views.RoundedImageView
             android:id="@+id/image_icon"
-            android:layout_margin="20dp"
-            android:layout_width="120dp"
-            android:layout_height="120dp" />
+            android:layout_marginVertical="20dp"
+            android:layout_marginRight="20dp"
+            android:layout_width="95dp"
+            android:layout_height="100dp"
+            android:layout_marginLeft="40dp"
+            android:scaleType="centerInside"/>
         <LinearLayout
             android:orientation="vertical"
             android:layout_width="match_parent"
@@ -30,17 +34,16 @@
                 android:layout_weight="1"
                 android:textColor="#FFFFFF"
                 android:textSize="@dimen/textview_font_size"
-                android:paddingLeft="16dp"
-                android:gravity="center_vertical"/>
+                android:paddingLeft="16dp" />
             <TextView
                 android:id="@+id/text_userid"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
+                android:gravity="bottom"
                 android:textColor="#FFFFFF"
                 android:textSize="@dimen/textview_font_size"
-                android:paddingLeft="16dp"
-                android:gravity="center_vertical"/>
+                android:paddingLeft="16dp" />
         </LinearLayout>
     </LinearLayout>
 
@@ -57,7 +60,7 @@
         android:id="@+id/button_history"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="历史考勤"
+        android:text="考勤历史"
         android:textSize="22sp"
         android:background="@drawable/white_button_selector"
         android:paddingVertical="10dp" />

@@ -61,7 +61,8 @@ public class RoundedImageView extends AppCompatImageView {
         paint.setColor(color);
         int x = bitmap.getWidth();
 
-        canvas.drawCircle(x / 2, x / 2, x / 2, paint);
+        //canvas.drawCircle(x / 2, x / 2, x / 2, paint);
+        canvas.drawOval(0, 0, bitmap.getWidth(), bitmap.getHeight(), paint);
         paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
         canvas.drawBitmap(bitmap, rect, rect, paint);
         return output;

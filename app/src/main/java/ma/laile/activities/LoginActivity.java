@@ -1,6 +1,14 @@
 package ma.laile.activities;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.PictureDrawable;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 
@@ -8,22 +16,38 @@ import android.os.AsyncTask;
 
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Base64;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import org.apache.http.NameValuePair;
+import org.apache.http.message.BasicNameValuePair;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.json.JSONTokener;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import ma.laile.PostRequest;
 import ma.laile.R;
+import ma.laile.context.MyApplication;
 
 /**
  * A login screen that offers login via email/password.
  */
 public class LoginActivity extends AppCompatActivity /*implements LoaderCallbacks<Cursor>*/ {
     private static final int USERNAME_LENGTH = 12;
+
+    public static boolean isSeen = false;
 
     /**
      * Keep track of the login task to ensure we can cancel it if requested.
@@ -36,16 +60,26 @@ public class LoginActivity extends AppCompatActivity /*implements LoaderCallback
 
     private Button mUserSignInButton;
 
+    private ActionBar mBar;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_login);
+        mBar = getSupportActionBar();
+        if (!isSeen) {
+            findViewById(R.id.layout_login).setBackgroundResource(R.drawable.lailema);
+            findViewById(R.id.email_login_form).setVisibility(View.GONE);
+            mBar.hide();
+        } else {
+            findViewById(R.id.layout_login).setBackground(new ColorDrawable(Color.WHITE));
+            findViewById(R.id.email_login_form).setVisibility(View.VISIBLE);
+        }
 
-        ActionBar bar = getSupportActionBar();
-        if (bar != null) {
-            bar.setDisplayOptions(ActionBar.DISPLAY_SHOW_CUSTOM);
-            bar.setCustomView(R.layout.action_bar_login);
+        if (mBar != null) {
+            mBar.setDisplayOptions(ActionBar.DISPLAY_SHOW_CUSTOM);
+            mBar.setCustomView(R.layout.action_bar_login);
         }
 
         // Set up the login form.
@@ -70,6 +104,77 @@ public class LoginActivity extends AppCompatActivity /*implements LoaderCallback
                 attemptLogin();
             }
         });
+
+        if (!isSeen) {
+            new Thread(new Runnable() {
+                public void run() {
+                    try {
+                        Thread.sleep(4000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+                    SharedPreferences pref = getSharedPreferences("lailema", 0);
+                    final String token = pref.getString("token", null);
+
+                    if (token != null) {
+                        PostRequest request = new PostRequest();
+                        request.setOnReceiveDataListener(new PostRequest.OnReceiveDataListener() {
+                            @Override
+                            public void onReceiveData(String strResult, int StatusCode) {
+                                Log.d("httpDebugLoginToken", strResult);
+                                if (!strResult.equals("false")) {
+                                    JSONTokener parser = new JSONTokener(strResult);
+                                    try {
+                                        JSONObject result = (JSONObject) parser.nextValue();
+                                        JSONObject student = (JSONObject) result.get("data");
+
+                                        MyApplication context = (MyApplication) getApplicationContext();
+                                        context.setName(student.getString("name"));
+                                        context.setUsername(student.getString("username"));
+
+                                        context.setToken(token);
+
+                                        byte[] bytes = Base64.decode(result.getString("icon"), Base64.DEFAULT);
+                                        Bitmap icon = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                                        context.setIcon(icon);
+
+                                        isSeen = false;
+                                        Intent intent = new Intent(LoginActivity.this, UserActivity.class);
+                                        startActivity(intent);
+                                        finish();
+                                    } catch (JSONException e) {
+                                        e.printStackTrace();
+                                    }
+                                } else {
+                                    runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            mBar.show();
+                                            findViewById(R.id.layout_login).setBackground(new ColorDrawable(Color.WHITE));
+                                            findViewById(R.id.email_login_form).setVisibility(View.VISIBLE);
+                                        }
+                                    });
+                                }
+                            }
+                        });
+
+                        List<NameValuePair> p = new ArrayList<NameValuePair>();
+                        request.iniRequest(PostRequest.Login, p, token);
+                        request.execute();
+                    } else {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                mBar.show();
+                                findViewById(R.id.layout_login).setBackground(new ColorDrawable(Color.WHITE));
+                                findViewById(R.id.email_login_form).setVisibility(View.VISIBLE);
+                            }
+                        });
+                    }
+                }
+            }).start();
+        }
     }
 
     /**
@@ -125,12 +230,10 @@ public class LoginActivity extends AppCompatActivity /*implements LoaderCallback
         }
     }
     private boolean isUsernameValid(String username) {
-        //TODO: Replace this with your own logic
         return username.matches("\\d{" + USERNAME_LENGTH + "}");
     }
 
     private boolean isPasswordValid(String password) {
-        //TODO: Replace this with your own logic
         return password.length() >= 6 && password.length() <= 15;
     }
 
@@ -150,14 +253,57 @@ public class LoginActivity extends AppCompatActivity /*implements LoaderCallback
 
         @Override
         protected Boolean doInBackground(Void... params) {
-            // TODO: attempt authentication against a network service.
+            PostRequest request = new PostRequest();
+            request.setOnReceiveDataListener(new PostRequest.OnReceiveDataListener() {
+                @Override
+                public void onReceiveData(String strResult, int StatusCode) {
+                    Log.d("httpDebugLogin", strResult);
+                    if (strResult.equals("false")) {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                mPasswordView.setError(getString(R.string.error_incorrect_password));
+                                mPasswordView.requestFocus();
+                                mUserSignInButton.setEnabled(true);
+                            }
+                        });
+                    } else {
+                        JSONTokener parser = new JSONTokener(strResult);
+                        try {
+                            JSONObject result = (JSONObject) parser.nextValue();
+                            JSONObject student = (JSONObject) result.get("data");
 
-            try {
-                // Simulate network access.
-                Thread.sleep(2000);
-            } catch (InterruptedException e) {
-                return false;
-            }
+                            MyApplication context = (MyApplication)getApplicationContext();
+                            context.setName(student.getString("name"));
+                            context.setToken(student.getString("token"));
+                            context.setUsername(student.getString("username"));
+
+                            SharedPreferences pref = getSharedPreferences("lailema", MODE_PRIVATE);
+                            SharedPreferences.Editor editor = pref.edit();
+                            editor.putString("token", student.getString("token"));
+                            editor.commit();
+
+                            byte[] bytes = Base64.decode(result.getString("icon"), Base64.DEFAULT);
+                            Bitmap icon = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                            context.setIcon(icon);
+
+                            isSeen = false;
+                            Intent intent = new Intent(LoginActivity.this, UserActivity.class);
+                            startActivity(intent);
+                            finish();
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            });
+
+            List<NameValuePair> p = new ArrayList<NameValuePair>();
+            p.add(new BasicNameValuePair("username", mUsername));
+            p.add(new BasicNameValuePair("password", mPassword));
+            request.iniRequest(PostRequest.Login, p);
+
+            request.execute();
 
             return true;
         }
@@ -165,16 +311,6 @@ public class LoginActivity extends AppCompatActivity /*implements LoaderCallback
         @Override
         protected void onPostExecute(final Boolean success) {
             mAuthTask = null;
-
-            if (success) {
-                Intent intent = new Intent(LoginActivity.this, UserActivity.class);
-                startActivity(intent);
-                finish();
-            } else {
-                mPasswordView.setError(getString(R.string.error_incorrect_password));
-                mPasswordView.requestFocus();
-                mUserSignInButton.setEnabled(true);
-            }
         }
 
         @Override
